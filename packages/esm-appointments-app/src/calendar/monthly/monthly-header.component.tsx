@@ -12,6 +12,13 @@ const LOCALE_MAP: Record<string, string> = {
   persian: 'fa-IR',
 };
 
+const CALENDAR_OPTIONS: Array<{ key: string; label: string }> = [
+  { key: 'gregory', label: 'Gregorian' },
+  { key: 'ethiopic', label: 'Ethiopic' },
+  { key: 'islamic', label: 'Islamic (Civil)' },
+  { key: 'persian', label: 'Persian (Solar Hijri)' },
+];
+
 interface MonthlyHeaderProps {
   calendarSelectedDate: Dayjs;
   calKey?: string;
@@ -28,8 +35,10 @@ const MonthlyHeader: React.FC<MonthlyHeaderProps> = ({
   const { t } = useTranslation();
   const locale = LOCALE_MAP[calKey] ?? 'en-US';
 
-  const dowLabels = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(1970, 0, 4 + i); // Jan 4, 1970 = Sunday
+  // Use Intl.DateTimeFormat directly — no stored DOW label arrays
+  const dayNames = Array.from({ length: 7 }, (_, i) => {
+    // Jan 4, 1970 is a Sunday — add i days to get Mon, Tue, etc.
+    const d = new Date(1970, 0, 4 + i);
     return new Intl.DateTimeFormat(locale, { weekday: 'short', calendar: calKey }).format(d);
   });
 
@@ -47,7 +56,7 @@ const MonthlyHeader: React.FC<MonthlyHeaderProps> = ({
         </Button>
       </div>
       <div className={styles.workLoadCard}>
-        {dowLabels.map((label, i) => (
+        {dayNames.map((label, i) => (
           <div key={i} className={styles.dowCell}>
             {label}
           </div>
@@ -58,3 +67,5 @@ const MonthlyHeader: React.FC<MonthlyHeaderProps> = ({
 };
 
 export default MonthlyHeader;
+
+export { LOCALE_MAP, CALENDAR_OPTIONS };
