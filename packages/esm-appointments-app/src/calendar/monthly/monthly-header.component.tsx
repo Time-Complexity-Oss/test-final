@@ -1,5 +1,4 @@
 import React from 'react';
-import { type Dayjs } from 'dayjs';
 import styles from './monthly-header.scss';
 
 const LOCALE_MAP: Record<string, string> = {
@@ -17,7 +16,6 @@ const CALENDAR_OPTIONS: Array<{ key: string; label: string }> = [
 ];
 
 interface MonthlyHeaderProps {
-  calendarSelectedDate: Dayjs;
   calKey?: string;
 }
 
@@ -28,10 +26,7 @@ const MonthlyHeader: React.FC<MonthlyHeaderProps> = ({ calKey = 'gregory' }) => 
   const dayNames = Array.from({ length: 7 }, (_, i) => {
     // Jan 4, 1970 is a Sunday — add i days to get Mon, Tue, etc.
     const d = new Date(1970, 0, 4 + i);
-    return new Intl.DateTimeFormat(locale, {
-      weekday: 'short',
-      calendar: calKey,
-    }).format(d);
+    return new Intl.DateTimeFormat(locale, { weekday: 'short', calendar: calKey }).format(d);
   });
 
   return (
