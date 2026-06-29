@@ -64,7 +64,6 @@ const AppointmentsCalendarView: React.FC = () => {
           events={calendarEvents}
           calendarSelectedDate={calendarSelectedDate}
           calKey={calSysKey}
-          setCalendarSelectedDate={setCalendarSelectedDate}
           onSelectDate={handleSelectDate}
         />
       )}
