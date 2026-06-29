@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
+import { getLocale } from '@openmrs/esm-framework';
 import { useAppointmentsCalendar } from '../hooks/useAppointmentsCalendar';
 import AppointmentsHeader from '../header/appointments-header.component';
 import { useSelectedDate } from '../hooks/useSelectedDate';
@@ -10,14 +11,27 @@ import WeeklyCalendarView from './weekly/weekly-calendar-view.component';
 import DailyCalendarView from './daily/daily-calendar-view.component';
 import DayAppointmentsModal from './day-appointments-modal/day-appointments-modal.component';
 
+const REVERSE_LOCALE_MAP: Record<string, string> = {
+  en: 'gregory',
+  am: 'ethiopic',
+  ar: 'islamic',
+  fa: 'persian',
+};
+
+function deriveCalKey(): string {
+  const locale = getLocale();
+  const lang = locale?.split('-')[0] ?? 'en';
+  return REVERSE_LOCALE_MAP[lang] ?? 'gregory';
+}
+
 const AppointmentsCalendarView: React.FC = () => {
   const { t } = useTranslation();
   const selectedDate = useSelectedDate();
 
-  const [calSysKey, setCalSysKey] = useState('gregory');
+  const calSysKey = deriveCalKey();
   const [viewMode, setViewMode] = useState<CalendarViewMode>('monthly');
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<Dayjs>(dayjs(selectedDate));
-  const [modalIsoDate, setModalIsoDate] = useState<string | null>(null);
+  const [modalState, setModalState] = useState<{ isoDate: string; hour?: number } | null>(null);
 
   const period = viewMode === 'weekly' ? 'weekly' : viewMode === 'daily' ? 'daily' : 'monthly';
   const { calendarEvents } = useAppointmentsCalendar(calendarSelectedDate.toISOString(), period);
@@ -34,17 +48,17 @@ const AppointmentsCalendarView: React.FC = () => {
     else setCalendarSelectedDate((d) => d.add(1, 'day'));
   }, [viewMode]);
 
-  const handleSelectDate = useCallback((isoDate: string) => setModalIsoDate(isoDate), []);
+  const handleSelectDate = useCallback((isoDate: string, hour?: number) => setModalState({ isoDate, hour }), []);
 
   const handleDrillDown = useCallback((_mode: 'daily', isoDate: string) => {
     setCalendarSelectedDate(dayjs(isoDate));
     setViewMode('daily');
-    setModalIsoDate(null);
+    setModalState(null);
   }, []);
 
   const handleViewModeChange = useCallback((mode: CalendarViewMode) => {
     setViewMode(mode);
-    setModalIsoDate(null);
+    setModalState(null);
   }, []);
 
   return (
@@ -52,10 +66,8 @@ const AppointmentsCalendarView: React.FC = () => {
       <AppointmentsHeader title={t('calendar', 'Calendar')} />
       <CalendarHeader
         viewMode={viewMode}
-        calKey={calSysKey}
         calendarSelectedDate={calendarSelectedDate}
         onViewModeChange={handleViewModeChange}
-        onCalendarSystemChange={setCalSysKey}
         onPrev={handlePrev}
         onNext={handleNext}
       />
@@ -64,6 +76,7 @@ const AppointmentsCalendarView: React.FC = () => {
           events={calendarEvents}
           calendarSelectedDate={calendarSelectedDate}
           calKey={calSysKey}
+          setCalendarSelectedDate={setCalendarSelectedDate}
           onSelectDate={handleSelectDate}
         />
       )}
@@ -75,11 +88,12 @@ const AppointmentsCalendarView: React.FC = () => {
         />
       )}
       {viewMode === 'daily' && <DailyCalendarView calKey={calSysKey} calendarSelectedDate={calendarSelectedDate} />}
-      {modalIsoDate && (
+      {modalState && (
         <DayAppointmentsModal
-          isoDate={modalIsoDate}
+          isoDate={modalState.isoDate}
+          hour={modalState.hour}
           calKey={calSysKey}
-          onClose={() => setModalIsoDate(null)}
+          onClose={() => setModalState(null)}
           onDrillDown={handleDrillDown}
         />
       )}
