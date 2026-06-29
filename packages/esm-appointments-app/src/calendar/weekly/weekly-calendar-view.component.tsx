@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { Tag } from '@carbon/react';
 import { type Dayjs } from 'dayjs';
 import {
   parseDate,
@@ -14,15 +13,9 @@ import {
   PersianCalendar,
   type Calendar,
 } from '@internationalized/date';
-import { type Appointment } from '../../types';
 import { useAppointmentsByDate } from '../../hooks/useAppointmentsByDate';
-import {
-  getServiceColor,
-  STATUS_TAG_TYPES,
-  DEFAULT_STATUS_TAG_TYPE,
-  CALENDAR_HOURS,
-  formatHourLabel,
-} from '../utils/calendar-colors';
+import { type Appointment } from '../../types';
+import { TIME_BLOCKS, countInBlock } from '../utils/calendar-colors';
 import styles from './weekly-calendar-view.scss';
 
 const LOCALE_MAP: Record<string, string> = {
@@ -55,10 +48,19 @@ function getCalendar(calKey: string): Calendar {
   }
 }
 
+interface WeekDay {
+  iso: string;
+  day: number;
+  month: number;
+  year: number;
+  dow: number;
+}
+
 interface WeeklyCalendarViewProps {
   calKey: string;
   calendarSelectedDate: Dayjs;
-  onSelectDate: (isoDate: string) => void;
+  /** Called with (isoDate, startHour, endHour) when a time-block cell is clicked. */
+  onSelectDate: (isoDate: string, startHour: number, endHour: number) => void;
 }
 
 const WeeklyCalendarView: React.FC<WeeklyCalendarViewProps> = ({ calKey, calendarSelectedDate, onSelectDate }) => {
@@ -67,7 +69,7 @@ const WeeklyCalendarView: React.FC<WeeklyCalendarViewProps> = ({ calKey, calenda
   const locale = LOCALE_MAP[calKey] ?? 'en-US';
   const cal = useMemo(() => getCalendar(calKey), [calKey]);
 
-  const weekDays = useMemo(() => {
+  const weekDays: ReadonlyArray<WeekDay> = useMemo(() => {
     const pivot = parseDate(isoDate);
     const firstDay = calKey === 'persian' ? 6 : 0;
     const weekStart = startOfWeek(pivot, 'en-US', DOW_LOCALE[firstDay]);
@@ -84,9 +86,20 @@ const WeeklyCalendarView: React.FC<WeeklyCalendarViewProps> = ({ calKey, calenda
     });
   }, [isoDate, cal, calKey]);
 
+  // ── Fetch appointments for all 7 days ──────────────────────────────────
+  const day0 = useAppointmentsByDate(weekDays[0].iso);
+  const day1 = useAppointmentsByDate(weekDays[1].iso);
+  const day2 = useAppointmentsByDate(weekDays[2].iso);
+  const day3 = useAppointmentsByDate(weekDays[3].iso);
+  const day4 = useAppointmentsByDate(weekDays[4].iso);
+  const day5 = useAppointmentsByDate(weekDays[5].iso);
+  const day6 = useAppointmentsByDate(weekDays[6].iso);
+  const dayData = [day0, day1, day2, day3, day4, day5, day6];
+
   return (
     <div className={styles.container}>
       <div className={styles.grid}>
+        {/* ── Column headers ─────────────────────────────────────────────── */}
         <div className={styles.cornerCell} />
         {weekDays.map((wd) => {
           const isToday = wd.iso === todayISO;
@@ -102,62 +115,36 @@ const WeeklyCalendarView: React.FC<WeeklyCalendarViewProps> = ({ calKey, calenda
             </div>
           );
         })}
-        {CALENDAR_HOURS.map((hr) => (
-          <React.Fragment key={hr}>
-            <div className={styles.timeLabel}>{formatHourLabel(hr)}</div>
-            {weekDays.map((wd) => (
-              <WeeklySlotCell
-                key={wd.iso}
-                isoDate={wd.iso}
-                hour={hr}
-                isToday={wd.iso === todayISO}
-                onSelectDate={onSelectDate}
-              />
-            ))}
+
+        {/* ── Time-block rows (always all 4) ─────────────────────────────── */}
+        {TIME_BLOCKS.map((block) => (
+          <React.Fragment key={block.label}>
+            <div className={styles.timeLabel}>{block.label}</div>
+            {weekDays.map((wd, dayIdx) => {
+              const count = countInBlock(dayData[dayIdx].appointments, block.startHour, block.endHour);
+              const hasAppts = count > 0;
+              const isToday = wd.iso === todayISO;
+              return (
+                <div
+                  key={wd.iso}
+                  role="button"
+                  tabIndex={hasAppts ? 0 : -1}
+                  aria-label={hasAppts ? `${count} appointments, ${block.label}` : undefined}
+                  onClick={() => hasAppts && onSelectDate(wd.iso, block.startHour, block.endHour)}
+                  onKeyDown={(e) => {
+                    if (hasAppts && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      onSelectDate(wd.iso, block.startHour, block.endHour);
+                    }
+                  }}
+                  className={`${styles.slotCell} ${isToday ? styles.slotCellToday : ''} ${hasAppts ? styles.slotCellHasAppts : ''}`}>
+                  {hasAppts && <span className={styles.slotBadge}>{count}</span>}
+                </div>
+              );
+            })}
           </React.Fragment>
         ))}
       </div>
-    </div>
-  );
-};
-
-interface SlotCellProps {
-  isoDate: string;
-  hour: number;
-  isToday: boolean;
-  onSelectDate: (isoDate: string) => void;
-}
-
-const WeeklySlotCell: React.FC<SlotCellProps> = ({ isoDate, hour, isToday, onSelectDate }) => {
-  const { appointments } = useAppointmentsByDate(isoDate);
-  const slotAppts = useMemo(
-    () => appointments.filter((a) => a.startDateTime != null && new Date(a.startDateTime).getHours() === hour),
-    [appointments, hour],
-  );
-
-  const hasAppts = slotAppts.length > 0;
-
-  return (
-    <div
-      role="button"
-      tabIndex={hasAppts ? 0 : -1}
-      aria-label={hasAppts ? `${slotAppts.length} appointments` : undefined}
-      onClick={() => hasAppts && onSelectDate(isoDate)}
-      onKeyDown={(e) => {
-        if (hasAppts && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          onSelectDate(isoDate);
-        }
-      }}
-      className={`${styles.slotCell} ${isToday ? styles.slotCellToday : ''} ${hasAppts ? styles.slotCellHasAppts : ''}`}>
-      {slotAppts.map((a) => (
-        <div key={a.uuid} className={styles.chip} style={{ borderLeftColor: getServiceColor(a.service?.name ?? '') }}>
-          <span className={styles.chipName}>{a.patient?.name ?? '—'}</span>
-          <Tag type={STATUS_TAG_TYPES[a.status] ?? DEFAULT_STATUS_TAG_TYPE} size="sm">
-            {a.status}
-          </Tag>
-        </div>
-      ))}
     </div>
   );
 };
