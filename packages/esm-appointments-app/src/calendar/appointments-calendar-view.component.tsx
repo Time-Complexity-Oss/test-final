@@ -31,7 +31,7 @@ const AppointmentsCalendarView: React.FC = () => {
   const calSysKey = deriveCalKey();
   const [viewMode, setViewMode] = useState<CalendarViewMode>('monthly');
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<Dayjs>(dayjs(selectedDate));
-  const [modalState, setModalState] = useState<{ isoDate: string; hour?: number } | null>(null);
+  const [modalState, setModalState] = useState<{ isoDate: string; startHour?: number; endHour?: number } | null>(null);
 
   const period = viewMode === 'weekly' ? 'weekly' : viewMode === 'daily' ? 'daily' : 'monthly';
   const { calendarEvents } = useAppointmentsCalendar(calendarSelectedDate.toISOString(), period);
@@ -48,7 +48,10 @@ const AppointmentsCalendarView: React.FC = () => {
     else setCalendarSelectedDate((d) => d.add(1, 'day'));
   }, [viewMode]);
 
-  const handleSelectDate = useCallback((isoDate: string, hour?: number) => setModalState({ isoDate, hour }), []);
+  const handleSelectDate = useCallback(
+    (isoDate: string, startHour?: number, endHour?: number) => setModalState({ isoDate, startHour, endHour }),
+    [],
+  );
 
   const handleDrillDown = useCallback((_mode: 'daily', isoDate: string) => {
     setCalendarSelectedDate(dayjs(isoDate));
@@ -76,7 +79,6 @@ const AppointmentsCalendarView: React.FC = () => {
           events={calendarEvents}
           calendarSelectedDate={calendarSelectedDate}
           calKey={calSysKey}
-          setCalendarSelectedDate={setCalendarSelectedDate}
           onSelectDate={handleSelectDate}
         />
       )}
@@ -91,7 +93,8 @@ const AppointmentsCalendarView: React.FC = () => {
       {modalState && (
         <DayAppointmentsModal
           isoDate={modalState.isoDate}
-          hour={modalState.hour}
+          startHour={modalState.startHour}
+          endHour={modalState.endHour}
           calKey={calSysKey}
           onClose={() => setModalState(null)}
           onDrillDown={handleDrillDown}
